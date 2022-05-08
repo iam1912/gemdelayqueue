@@ -2,20 +2,28 @@ package delayqueue
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/go-redis/redis/v8"
 	"github.com/iam1912/gemseries/gemdelayqueue/config"
+	"github.com/iam1912/gemseries/gemdelayqueue/consts"
 	"github.com/iam1912/gemseries/gemdelayqueue/log"
 )
 
 type DelayQueue struct {
-	time   time.Duration
-	Client *redis.Client
+	time          time.Duration
+	delayCount    int
+	reversedCount int
+	Client        *redis.Client
 }
 
 func New(c config.Config) (*DelayQueue, error) {
-	dq := &DelayQueue{time: time.Second * time.Duration(c.TickerTime)}
+	dq := &DelayQueue{
+		time:          time.Second * time.Duration(c.TickerTime),
+		delayCount:    c.DelayBucket,
+		reversedCount: c.ReversedBucket,
+	}
 	dq.Client = redis.NewClient(&redis.Options{
 		Addr:         c.Addr,
 		Password:     c.Password,
@@ -42,13 +50,21 @@ func (dq *DelayQueue) Run() {
 		select {
 		case <-ticker.C:
 			log.Info("当前循环时间", time.Now().Format("2006-01-02 15:04:05"))
-			err := dq.ScannDelayBucket(context.Background())
-			if err != nil {
-				log.Error("scaning delaybucket failed:", err.Error())
+			for i := 0; i < dq.delayCount; i++ {
+				go func(i int) {
+					err := dq.ScannDelayBucket(context.Background(), fmt.Sprintf("%s-%d", consts.DelayBucket, i))
+					if err != nil {
+						log.Errorf("scaning delaybucket-%d failed:%s\n", i, err.Error())
+					}
+				}(i)
 			}
-			err = dq.ScannReversedBucket(context.Background())
-			if err != nil {
-				log.Error("scaning reversedbucket failed:", err.Error())
+			for i := 0; i < dq.reversedCount; i++ {
+				go func(i int) {
+					err := dq.ScannReversedBucket(context.Background())
+					if err != nil {
+						log.Error("scaning reversedbucket failed:", err.Error())
+					}
+				}(i)
 			}
 		}
 	}

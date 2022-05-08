@@ -14,5 +14,5 @@ func Run() {
 		panic(err)
 	}
 	log.Info("success connection redis")
-	go dq.Run()
+	dq.Run()
 }

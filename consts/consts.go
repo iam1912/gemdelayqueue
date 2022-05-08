@@ -13,3 +13,8 @@ const (
 	State_Reserved
 	State_Deleted
 )
+
+const (
+	JobPrefix = "Job"
+	BucketPrefix = "Bucket"
+)

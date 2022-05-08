@@ -3,6 +3,8 @@ package dqclient
 import (
 	"context"
 	"errors"
+	"math"
+	"math/rand"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -10,10 +12,15 @@ import (
 	"github.com/iam1912/gemseries/gemdelayqueue/consts"
 	"github.com/iam1912/gemseries/gemdelayqueue/log"
 	"github.com/iam1912/gemseries/gemdelayqueue/models"
+	"github.com/iam1912/gemseries/gemdelayqueue/utils"
 )
 
 type Client struct {
-	Rdb *redis.Client
+	Rdb           *redis.Client
+	delayIndex    int
+	reverseIndex  int
+	delayCount    int
+	reversedCount int
 }
 
 func New(c config.Config) (*Client, error) {
@@ -29,7 +36,13 @@ func New(c config.Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	client := &Client{Rdb: rdb}
+	client := &Client{
+		Rdb:           rdb,
+		delayIndex:    rand.Intn(math.MaxInt32 - 1),
+		reverseIndex:  rand.Intn(math.MaxInt32 - 1),
+		delayCount:    c.DelayBucket,
+		reversedCount: c.ReversedBucket,
+	}
 	return client, nil
 }
 
@@ -40,24 +53,25 @@ func (c *Client) RPop(ctx context.Context, topic string) (*models.Job, error) {
 		return nil, err
 	}
 	if err == redis.Nil {
-		log.Error("%s is empty", topic)
+		log.Errorf("%s is empty\n", topic)
 		return nil, err
 	}
-	log.Infof("get %s from topic %s\n", key, topic)
-
 	job, err := models.GetJob(ctx, c.Rdb, key)
 	if err != nil {
 		log.Errorf("get %d is failed:%s\n", key, err.Error())
 		return nil, err
 	}
+	i := c.delayIndex % c.delayCount
+	c.delayIndex = (c.delayIndex + 1) % c.delayCount
 	pipe := c.Rdb.TxPipeline()
 	pipe.HSet(ctx, key, "state", consts.State_Reserved, "pop_time", time.Now().Unix())
 	pipe.LRem(ctx, topic, 0, key)
-	pipe.LPush(ctx, consts.ReservedBucket, key)
+	pipe.LPush(ctx, utils.GetBucket(consts.ReservedBucket, i), key)
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
+	log.Infof("get key %s from topic %s\n", key, topic)
 	return job, nil
 }
 
@@ -76,10 +90,12 @@ func (c *Client) BRPop(ctx context.Context, topic string) (*models.Job, error) {
 		log.Errorf("get %d is failed:%s\n", key, err.Error())
 		return nil, err
 	}
+	i := c.delayIndex % c.delayCount
+	c.delayIndex = (c.delayIndex + 1) % c.delayCount
 	pipe := c.Rdb.TxPipeline()
 	pipe.HSet(ctx, key[0], "state", consts.State_Reserved, "pop_time", time.Now().Unix())
 	pipe.LRem(ctx, topic, 0, key)
-	pipe.LPush(ctx, consts.ReservedBucket, key)
+	pipe.LPush(ctx, utils.GetBucket(consts.ReservedBucket, i), key)
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return nil, err
@@ -88,5 +104,46 @@ func (c *Client) BRPop(ctx context.Context, topic string) (*models.Job, error) {
 }
 
 func (c *Client) Add(ctx context.Context, id, topic string, deplay, ttr int64, body string) error {
-	return models.AddJob(ctx, c.Rdb, id, topic, deplay, ttr, body)
+	i := c.delayIndex % c.delayCount
+	c.delayIndex = (c.delayIndex + 1) % c.delayCount
+	return models.AddJob(ctx, c.Rdb, id, topic, deplay, ttr, body, i)
+}
+
+func (c *Client) Finish(ctx context.Context, key string) error {
+	pipe := c.Rdb.TxPipeline()
+	pipe.ZRem(ctx, consts.DelayBucket, key)
+	pipe.LRem(ctx, consts.ReservedBucket, 0, key)
+	pipe.HDel(ctx, key)
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		log.Errorf("%s finish failed:%s\n", key, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (c *Client) Deleted(ctx context.Context, key string) error {
+	pipe := c.Rdb.TxPipeline()
+	pipe.ZRem(ctx, consts.DelayBucket, key)
+	pipe.LRem(ctx, consts.ReservedBucket, 0, key)
+	pipe.HSet(ctx, key, "state", consts.FailedBucket)
+	pipe.ZAdd(ctx, consts.FailedBucket, &redis.Z{
+		Score:  float64(time.Now().Unix()),
+		Member: key,
+	})
+	_, err := pipe.Exec(ctx)
+	if err != nil {
+		log.Errorf("%s deleted failed:%s\n", key, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (c *Client) GetJobInfo(ctx context.Context, key string) (*models.Job, error) {
+	job, err := models.GetJob(ctx, c.Rdb, key)
+	if err != nil {
+		log.Errorf("%s is not exist\n", key)
+		return nil, err
+	}
+	return job, nil
 }
