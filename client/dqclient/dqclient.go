@@ -51,16 +51,16 @@ func New(c config.Config) (*Client, error) {
 func (c *Client) RPop(ctx context.Context, topic string) (*models.Job, error) {
 	key, err := c.Rdb.LIndex(ctx, topic, -1).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.ErrorfOutStdoutFile("get jobID from %s failed:%s\n", topic, err.Error())
+		log.Errorf("get jobID from %s failed:%s\n", topic, err.Error())
 		return nil, err
 	}
 	if err == redis.Nil {
-		log.ErrorfOutStdoutFile("%s is empty\n", topic)
+		log.Infof("%s is empty\n", topic)
 		return nil, err
 	}
 	job, err := models.GetJob(ctx, c.Rdb, key)
 	if err != nil {
-		log.ErrorfOutStdoutFile("get %d is failed:%s\n", key, err.Error())
+		log.Errorf("get %d is failed:%s\n", key, err.Error())
 		return nil, err
 	}
 	i := c.delayIndex % c.delayCount
@@ -73,23 +73,23 @@ func (c *Client) RPop(ctx context.Context, topic string) (*models.Job, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.InfofOutStdoutFile("get key %s from topic %s\n", key, topic)
+	log.Infof("get key %s from topic %s\n", key, topic)
 	return job, nil
 }
 
 func (c *Client) BRPop(ctx context.Context, topic string) (*models.Job, error) {
 	key, err := c.Rdb.BRPop(ctx, 0, topic).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.ErrorfOutStdoutFile("get jobID from %s failed:%s\n", topic, err.Error())
+		log.Errorf("get jobID from %s failed:%s\n", topic, err.Error())
 		return nil, err
 	}
 	if err == redis.Nil {
-		log.ErrorfOutStdoutFile("%s is empty", topic)
+		log.Infof("%s is empty", topic)
 		return nil, err
 	}
 	job, err := models.GetJob(ctx, c.Rdb, key[0])
 	if err != nil {
-		log.ErrorfOutStdoutFile("get %d is failed:%s\n", key, err.Error())
+		log.Errorf("get %d is failed:%s\n", key, err.Error())
 		return nil, err
 	}
 	i := c.delayIndex % c.delayCount
@@ -121,7 +121,7 @@ func (c *Client) Finish(ctx context.Context, key string) error {
 	pipe.HDel(ctx, key)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.ErrorfOutStdoutFile("%s finish failed:%s\n", key, err.Error())
+		log.Errorf("%s finish failed:%s\n", key, err.Error())
 		return err
 	}
 	return nil
@@ -138,16 +138,16 @@ func (c *Client) Deleted(ctx context.Context, key string) error {
 	})
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.ErrorfOutStdoutFile("%s deleted failed:%s\n", key, err.Error())
+		log.Errorf("%s deleted failed:%s\n", key, err.Error())
 		return err
 	}
 	return nil
 }
 
-func (c *Client) GetJobInfo(ctx context.Context, key string) (*models.Job, error) {
-	job, err := models.GetJob(ctx, c.Rdb, key)
+func (c *Client) GetJobInfo(ctx context.Context, topic, id string) (*models.Job, error) {
+	job, err := models.GetJob(ctx, c.Rdb, utils.GetJobKey(topic, id))
 	if err != nil {
-		log.ErrorfOutStdoutFile("%s is not exist\n", key)
+		log.Errorf("%s is not exist\n", utils.GetJobKey(topic, id))
 		return nil, err
 	}
 	return job, nil

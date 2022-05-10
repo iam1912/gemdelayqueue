@@ -4,10 +4,12 @@ poolsize: 10
 xaxretry: 3
 idletimeout: 5
 minidleconns: 5
-tickertime: 1800
+tickertime: 60
 delaybucket: 5
 reversedbucket: 5
 MaxTries: 5
 port: ":9091"
-errorlog: "./logs/error.log"
-infolog: "./logs/access.log"
+serveerrorlog: "../serve_logs/error.log"
+serveinfolog: "../serve_logs/access.log"
+clienterrorlog: "../client_logs/error.log"
+clientinfolog: "../client_logs/access.log"

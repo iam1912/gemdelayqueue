@@ -32,17 +32,17 @@ func AddJob(ctx context.Context, client *redis.Client, id, topic string, deplay,
 	})
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.ErrorfOutStdoutFile("%s is add to hash and DelayBucket failed:%s\n", key, err.Error())
+		log.Errorf("%s is add to hash and DelayBucket failed:%s\n", key, err.Error())
 		return err
 	}
-	log.InfofOutStdoutFile("%s success add to hash and DelayBucket\n", key)
+	log.Infof("%s success add to hash and DelayBucket\n", key)
 	return nil
 }
 
 func GetJob(ctx context.Context, client *redis.Client, key string) (*Job, error) {
 	result, err := client.HGetAll(ctx, key).Result()
 	if err != nil {
-		log.ErrorfOutStdoutFile("get %s job failed:%s\n", key, err.Error())
+		log.Errorf("get %s job failed:%s\n", key, err.Error())
 		return nil, err
 	}
 	job := &Job{

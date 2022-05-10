@@ -34,7 +34,7 @@ func InferRootDir() string {
 	}
 	var infer func(d string) string
 	infer = func(d string) string {
-		if exists(d + "/config.yml") {
+		if Exists(d + "/config.yml") {
 			return d
 		}
 		return infer(filepath.Dir(d))
@@ -42,7 +42,7 @@ func InferRootDir() string {
 
 	return infer(cwd)
 }
-func exists(filename string) bool {
+func Exists(filename string) bool {
 	_, err := os.Stat(filename)
 	return err == nil || os.IsExist(err)
 }

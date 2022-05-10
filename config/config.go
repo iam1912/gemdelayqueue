@@ -19,8 +19,10 @@ type Config struct {
 	DelayBucket    int
 	ReversedBucket int
 	MaxTries       int
-	InfoLog        string
-	ErrorLog       string
+	ServeInfoLog   string
+	ServeErrorLog  string
+	ClientInfoLog  string
+	ClientErrorLog string
 }
 
 var _RedisConfig *Config

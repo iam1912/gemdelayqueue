@@ -4,55 +4,80 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+
+	"github.com/iam1912/gemseries/gemdelayqueue/utils"
 )
 
 var (
-	errorLog     = log.New(os.Stdout, "\033[31m[error]\033[0m ", log.LstdFlags|log.Lshortfile)
-	infoLog      = log.New(os.Stdout, "\033[34m[info ]\033[0m ", log.LstdFlags|log.Lshortfile)
-	fileInfoLog  *log.Logger
-	fileErrorlog *log.Logger
+	errorLog           = log.New(os.Stdout, "\033[31m[error]\033[0m ", log.LstdFlags|log.Lshortfile)
+	infoLog            = log.New(os.Stdout, "\033[34m[info ]\033[0m ", log.LstdFlags|log.Lshortfile)
+	serveFileInfoLog   *log.Logger
+	serveFileErrorlog  *log.Logger
+	clientFileInfoLog  *log.Logger
+	clientFileErrorLog *log.Logger
 )
 
 var (
-	Error      = errorLog.Println
-	Errorf     = errorLog.Printf
-	Info       = infoLog.Println
-	Infof      = infoLog.Printf
-	FileInfo   = fileInfoLog.Println
-	FileInfof  = fileInfoLog.Printf
-	FileError  = fileErrorlog.Println
-	FileErrorf = fileErrorlog.Printf
+	Error  = errorLog.Println
+	Errorf = errorLog.Printf
+	Info   = infoLog.Println
+	Infof  = infoLog.Printf
 )
 
-func InitFileLogger(infoLog, errorLog string) {
-	file := filepath.Dir(infoLog)
-	_, err := os.Stat(file)
-	if err != nil && os.IsNotExist(err) {
-		os.MkdirAll(file, os.ModePerm)
+func InitServeFileLogger(infoLog, errorLog string) error {
+	name := filepath.Dir(infoLog)
+	ok := utils.Exists(name)
+	if !ok {
+		os.MkdirAll(name, os.ModePerm)
 	}
 	fileInfo, err := os.OpenFile(infoLog, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		panic("info file log failed:" + err.Error())
+		return err
 	}
-	fileInfoLog = log.New(fileInfo, "[info ] ", log.LstdFlags|log.Lshortfile)
-	FileInfo = fileInfoLog.Println
-	FileInfof = fileInfoLog.Printf
-
+	serveFileInfoLog = log.New(fileInfo, "[info ] ", log.LstdFlags|log.Lshortfile)
 	fileError, err := os.OpenFile(errorLog, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
 	if err != nil {
-		panic("error file log failed:" + err.Error())
+		return err
 	}
-	fileErrorlog = log.New(fileError, "[error ] ", log.LstdFlags|log.Lshortfile)
-	FileError = fileErrorlog.Println
-	FileErrorf = fileErrorlog.Printf
+	serveFileErrorlog = log.New(fileError, "[error ] ", log.LstdFlags|log.Lshortfile)
+	return nil
 }
 
-func InfofOutStdoutFile(format string, v ...any) {
+func InitClientFileLogger(infoLog, errorLog string) error {
+	name := filepath.Dir(infoLog)
+	ok := utils.Exists(name)
+	if !ok {
+		os.MkdirAll(name, os.ModePerm)
+	}
+	fileInfo, err := os.OpenFile(infoLog, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	clientFileInfoLog = log.New(fileInfo, "[info ] ", log.LstdFlags|log.Lshortfile)
+	fileError, err := os.OpenFile(errorLog, os.O_RDWR|os.O_CREATE|os.O_APPEND, os.ModePerm)
+	if err != nil {
+		return err
+	}
+	clientFileErrorLog = log.New(fileError, "[error ] ", log.LstdFlags|log.Lshortfile)
+	return nil
+}
+
+func ServeInfo(format string, v ...any) {
 	Infof(format, v)
-	FileInfof(format, v)
+	serveFileInfoLog.Printf(format, v...)
 }
 
-func ErrorfOutStdoutFile(format string, v ...any) {
+func ServeError(format string, v ...any) {
 	Errorf(format, v)
-	FileErrorf(format, v)
+	serveFileErrorlog.Printf(format, v...)
+}
+
+func ClientInfo(format string, v ...any) {
+	Infof(format, v)
+	clientFileInfoLog.Printf(format, v...)
+}
+
+func ClientError(format string, v ...any) {
+	Errorf(format, v)
+	clientFileErrorLog.Printf(format, v...)
 }

@@ -111,11 +111,12 @@ func (h Handler) GetInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := r.FormValue("id")
-	if id == "" {
+	topic := r.FormValue("topic")
+	if id == "" || topic == "" {
 		RenderFailureJSON(w, InvalidParam)
 		return
 	}
-	job, err := h.Client.GetJobInfo(context.Background(), id)
+	job, err := h.Client.GetJobInfo(context.Background(), topic, id)
 	if err != nil {
 		RenderFailureJSON(w, err.Error())
 		return

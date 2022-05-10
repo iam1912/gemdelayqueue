@@ -9,7 +9,7 @@ import (
 func Run() {
 	c := config.MustGetConfig()
 	dq, err := delayqueue.New(c)
-	log.InitFileLogger(c.InfoLog, c.ErrorLog)
+	log.InitServeFileLogger(c.ServeInfoLog, c.ServeErrorLog)
 	if err != nil {
 		log.Errorf("failed connection redis:%s\n", err.Error())
 		panic(err)

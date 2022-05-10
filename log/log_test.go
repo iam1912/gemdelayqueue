@@ -8,6 +8,7 @@ import (
 
 func TestFileLog(t *testing.T) {
 	c := config.MustGetConfig()
-	InitFileLogger(c.InfoLog, c.ErrorLog)
-	FileInfo("HELLO WORLD")
+	InitServeFileLogger(c.ServeInfoLog, c.ServeErrorLog)
+	InitClientFileLogger(c.ClientInfoLog, c.ClientErrorLog)
+	clientFileInfoLog.Printf("HELLOWORLD\n")
 }

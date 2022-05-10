@@ -47,7 +47,10 @@ func (ws *WsConn) Read(client *dqclient.Client, ctx context.Context) error {
 			}
 			return err
 		}
-		ws.HandleCommand(client, command, ctx)
+		err = ws.HandleCommand(client, command, ctx)
+		if err != nil {
+			return err
+		}
 	}
 }
 
@@ -103,6 +106,19 @@ func (ws *WsConn) HandleCommand(client *dqclient.Client, command map[string]stri
 			return err
 		}
 		ws.sendChannel("", "", "success finish")
+	case "info":
+		id := command["id"]
+		topic := command["topic"]
+		if id == "" || topic == "" {
+			RenderErrorResponse(ws.conn, ctx, "invalid param")
+			return invalidErr
+		}
+		job, err := client.GetJobInfo(ctx, topic, id)
+		if err != nil {
+			RenderErrorResponse(ws.conn, ctx, err.Error())
+			return err
+		}
+		ws.sendChannel(job.ID, job.Topic, job.Body)
 	}
 	return nil
 }
