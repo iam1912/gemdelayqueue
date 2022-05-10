@@ -47,7 +47,7 @@ func (h Handler) Add(w http.ResponseWriter, r *http.Request) {
 		RenderFailureJSON(w, "incorrct topic parameter format")
 		return
 	}
-	err = h.Client.Add(context.Background(), req.ID, req.Topic, int64(req.Delay), int64(req.TTR), req.Body)
+	err = h.Client.Add(context.Background(), req.ID, req.Topic, int64(req.Delay), int64(req.TTR), req.MaxTries, req.Body)
 	if err != nil {
 		RenderFailureJSON(w, fmt.Sprintf("%s is add failed:%s", utils.GetJobKey(req.Topic, req.ID), err.Error()))
 		return

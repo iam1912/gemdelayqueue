@@ -21,6 +21,7 @@ type Client struct {
 	reverseIndex  int
 	delayCount    int
 	reversedCount int
+	MaxTries      int
 }
 
 func New(c config.Config) (*Client, error) {
@@ -42,6 +43,7 @@ func New(c config.Config) (*Client, error) {
 		reverseIndex:  rand.Intn(math.MaxInt32 - 1),
 		delayCount:    c.DelayBucket,
 		reversedCount: c.ReversedBucket,
+		MaxTries:      c.MaxTries,
 	}
 	return client, nil
 }
@@ -49,51 +51,51 @@ func New(c config.Config) (*Client, error) {
 func (c *Client) RPop(ctx context.Context, topic string) (*models.Job, error) {
 	key, err := c.Rdb.LIndex(ctx, topic, -1).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.Errorf("get jobID from %s failed:%s\n", topic, err.Error())
+		log.ErrorfOutStdoutFile("get jobID from %s failed:%s\n", topic, err.Error())
 		return nil, err
 	}
 	if err == redis.Nil {
-		log.Errorf("%s is empty\n", topic)
+		log.ErrorfOutStdoutFile("%s is empty\n", topic)
 		return nil, err
 	}
 	job, err := models.GetJob(ctx, c.Rdb, key)
 	if err != nil {
-		log.Errorf("get %d is failed:%s\n", key, err.Error())
+		log.ErrorfOutStdoutFile("get %d is failed:%s\n", key, err.Error())
 		return nil, err
 	}
 	i := c.delayIndex % c.delayCount
 	c.delayIndex = (c.delayIndex + 1) % c.delayCount
 	pipe := c.Rdb.TxPipeline()
-	pipe.HSet(ctx, key, "state", consts.State_Reserved, "pop_time", time.Now().Unix())
+	pipe.HSet(ctx, key, "state", consts.State_Reserved, "tries", job.Tries+1, "pop_time", time.Now().Unix())
 	pipe.LRem(ctx, topic, 0, key)
 	pipe.LPush(ctx, utils.GetBucket(consts.ReservedBucket, i), key)
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return nil, err
 	}
-	log.Infof("get key %s from topic %s\n", key, topic)
+	log.InfofOutStdoutFile("get key %s from topic %s\n", key, topic)
 	return job, nil
 }
 
 func (c *Client) BRPop(ctx context.Context, topic string) (*models.Job, error) {
 	key, err := c.Rdb.BRPop(ctx, 0, topic).Result()
 	if err != nil && !errors.Is(err, redis.Nil) {
-		log.Errorf("get jobID from %s failed:%s\n", topic, err.Error())
+		log.ErrorfOutStdoutFile("get jobID from %s failed:%s\n", topic, err.Error())
 		return nil, err
 	}
 	if err == redis.Nil {
-		log.Error("%s is empty", topic)
+		log.ErrorfOutStdoutFile("%s is empty", topic)
 		return nil, err
 	}
 	job, err := models.GetJob(ctx, c.Rdb, key[0])
 	if err != nil {
-		log.Errorf("get %d is failed:%s\n", key, err.Error())
+		log.ErrorfOutStdoutFile("get %d is failed:%s\n", key, err.Error())
 		return nil, err
 	}
 	i := c.delayIndex % c.delayCount
 	c.delayIndex = (c.delayIndex + 1) % c.delayCount
 	pipe := c.Rdb.TxPipeline()
-	pipe.HSet(ctx, key[0], "state", consts.State_Reserved, "pop_time", time.Now().Unix())
+	pipe.HSet(ctx, key[0], "state", consts.State_Reserved, "tries", job.Tries+1, "pop_time", time.Now().Unix())
 	pipe.LRem(ctx, topic, 0, key)
 	pipe.LPush(ctx, utils.GetBucket(consts.ReservedBucket, i), key)
 	_, err = pipe.Exec(ctx)
@@ -103,10 +105,13 @@ func (c *Client) BRPop(ctx context.Context, topic string) (*models.Job, error) {
 	return job, nil
 }
 
-func (c *Client) Add(ctx context.Context, id, topic string, deplay, ttr int64, body string) error {
+func (c *Client) Add(ctx context.Context, id, topic string, deplay, ttr int64, maxTries int, body string) error {
+	if maxTries == 0 {
+		maxTries = c.MaxTries
+	}
 	i := c.delayIndex % c.delayCount
 	c.delayIndex = (c.delayIndex + 1) % c.delayCount
-	return models.AddJob(ctx, c.Rdb, id, topic, deplay, ttr, body, i)
+	return models.AddJob(ctx, c.Rdb, id, topic, deplay, ttr, body, maxTries, i)
 }
 
 func (c *Client) Finish(ctx context.Context, key string) error {
@@ -116,7 +121,7 @@ func (c *Client) Finish(ctx context.Context, key string) error {
 	pipe.HDel(ctx, key)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.Errorf("%s finish failed:%s\n", key, err.Error())
+		log.ErrorfOutStdoutFile("%s finish failed:%s\n", key, err.Error())
 		return err
 	}
 	return nil
@@ -133,7 +138,7 @@ func (c *Client) Deleted(ctx context.Context, key string) error {
 	})
 	_, err := pipe.Exec(ctx)
 	if err != nil {
-		log.Errorf("%s deleted failed:%s\n", key, err.Error())
+		log.ErrorfOutStdoutFile("%s deleted failed:%s\n", key, err.Error())
 		return err
 	}
 	return nil
@@ -142,7 +147,7 @@ func (c *Client) Deleted(ctx context.Context, key string) error {
 func (c *Client) GetJobInfo(ctx context.Context, key string) (*models.Job, error) {
 	job, err := models.GetJob(ctx, c.Rdb, key)
 	if err != nil {
-		log.Errorf("%s is not exist\n", key)
+		log.ErrorfOutStdoutFile("%s is not exist\n", key)
 		return nil, err
 	}
 	return job, nil

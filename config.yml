@@ -1,12 +1,13 @@
-#[redis]
 addr: 127.0.0.1:6379
 password: ""
 poolsize: 10
 xaxretry: 3
 idletimeout: 5
 minidleconns: 5
-tickertime: 5
+tickertime: 1800
 delaybucket: 5
 reversedbucket: 5
-#[serve]
+MaxTries: 5
 port: ":9091"
+errorlog: "./logs/error.log"
+infolog: "./logs/access.log"

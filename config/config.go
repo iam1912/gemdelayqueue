@@ -18,6 +18,9 @@ type Config struct {
 	Port           string
 	DelayBucket    int
 	ReversedBucket int
+	MaxTries       int
+	InfoLog        string
+	ErrorLog       string
 }
 
 var _RedisConfig *Config

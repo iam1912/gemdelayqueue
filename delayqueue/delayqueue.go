@@ -40,29 +40,29 @@ func New(c config.Config) (*DelayQueue, error) {
 }
 
 func (dq *DelayQueue) Run() {
-	log.Infof("定时器每隔%v执行一次\n", dq.time)
+	log.InfofOutStdoutFile("定时器每隔%v执行一次\n", dq.time)
 	ticker := time.NewTicker(dq.time)
 	defer func() {
-		log.Info("scaning bucket is stop")
+		log.InfofOutStdoutFile("scaning bucket is stop")
 		ticker.Stop()
 	}()
 	for {
 		select {
 		case <-ticker.C:
-			log.Info("当前循环时间", time.Now().Format("2006-01-02 15:04:05"))
+			log.InfofOutStdoutFile("当前循环时间", time.Now().Format("2006-01-02 15:04:05"))
 			for i := 0; i < dq.delayCount; i++ {
 				go func(i int) {
 					err := dq.ScannDelayBucket(context.Background(), fmt.Sprintf("%s-%d", consts.DelayBucket, i))
 					if err != nil {
-						log.Errorf("scaning delaybucket-%d failed:%s\n", i, err.Error())
+						log.ErrorfOutStdoutFile("scaning DelayBucket-%d failed:%s\n", i, err.Error())
 					}
 				}(i)
 			}
 			for i := 0; i < dq.reversedCount; i++ {
 				go func(i int) {
-					err := dq.ScannReversedBucket(context.Background())
+					err := dq.ScannReversedBucket(context.Background(), fmt.Sprintf("%s-%d", consts.ReservedBucket, i))
 					if err != nil {
-						log.Error("scaning reversedbucket failed:", err.Error())
+						log.ErrorfOutStdoutFile("scaning ReversedBucket-%d failed:%s\n", i, err.Error())
 					}
 				}(i)
 			}

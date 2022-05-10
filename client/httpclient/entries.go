@@ -1,11 +1,12 @@
 package httpclient
 
 type AddRequest struct {
-	Topic string `json:"topic"`
-	ID    string `json:"id"`
-	Delay int64    `json:"delay"`
-	TTR   int64    `json:"ttr"`
-	Body  string `json:"body"`
+	Topic    string `json:"topic"`
+	ID       string `json:"id"`
+	Delay    int64  `json:"delay"`
+	TTR      int64  `json:"ttr"`
+	Body     string `json:"body"`
+	MaxTries int    `json:"max_tries"`
 }
 
 type Response struct {
