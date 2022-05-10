@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/iam1912/gemseries/gemdelayqueue/client/dqclient"
-	"github.com/iam1912/gemseries/gemdelayqueue/config"
 	"github.com/iam1912/gemseries/gemdelayqueue/consts"
 	"github.com/iam1912/gemseries/gemdelayqueue/utils"
 )
@@ -18,12 +17,8 @@ type Handler struct {
 	Client *dqclient.Client
 }
 
-func New(c config.Config) (Handler, error) {
-	client, err := dqclient.New(c)
-	if err != nil {
-		return Handler{}, err
-	}
-	return Handler{Client: client}, nil
+func New(client *dqclient.Client) Handler {
+	return Handler{Client: client}
 }
 
 func (h Handler) Add(w http.ResponseWriter, r *http.Request) {
