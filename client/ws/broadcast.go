@@ -1,5 +1,7 @@
 package ws
 
+import "nhooyr.io/websocket"
+
 type broadcast struct {
 	users    map[string]*WsConn
 	register chan *WsConn
@@ -19,6 +21,7 @@ func (b *broadcast) Run() {
 			b.users[wsConn.ID] = wsConn
 		case wsConn := <-b.leave:
 			delete(b.users, wsConn.ID)
+			wsConn.conn.Close(websocket.StatusAbnormalClosure, "connection closed")
 			wsConn.close()
 		}
 	}

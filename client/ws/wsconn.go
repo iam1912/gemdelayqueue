@@ -4,29 +4,31 @@ import (
 	"context"
 	"errors"
 	"io"
+	"time"
 
 	"github.com/iam1912/gemseries/gemdelayqueue/client/dqclient"
+	"github.com/iam1912/gemseries/gemdelayqueue/log"
 	"github.com/iam1912/gemseries/gemdelayqueue/utils"
 	"nhooyr.io/websocket"
 	"nhooyr.io/websocket/wsjson"
 )
 
 type WsConn struct {
-	ID             string
-	commandChannel chan *Response
-	conn           *websocket.Conn
+	ID              string
+	responseChannel chan *Response
+	conn            *websocket.Conn
 }
 
 func NewWsConn(id string, conn *websocket.Conn) *WsConn {
 	return &WsConn{
-		ID:             id,
-		commandChannel: make(chan *Response),
-		conn:           conn,
+		ID:              id,
+		responseChannel: make(chan *Response, 32),
+		conn:            conn,
 	}
 }
 
 func (ws *WsConn) Write(ctx context.Context) {
-	for cmd := range ws.commandChannel {
+	for cmd := range ws.responseChannel {
 		wsjson.Write(ctx, ws.conn, cmd)
 	}
 }
@@ -47,9 +49,32 @@ func (ws *WsConn) Read(client *dqclient.Client, ctx context.Context) error {
 			}
 			return err
 		}
-		err = ws.HandleCommand(client, command, ctx)
-		if err != nil {
-			return err
+		switch command["type"] {
+		case "1":
+			err = ws.HandleCommand(client, command, ctx)
+			if err != nil {
+				return err
+			}
+		case "2":
+			ws.HandleHeartBeat(ctx)
+		}
+	}
+}
+
+func (ws *WsConn) SendHeartBeat(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute * 2)
+	defer func() {
+		ticker.Stop()
+		log.Infof("the %s client closed the connection ineffectively\n", ws.ID)
+	}()
+	for {
+		select {
+		case <-ticker.C:
+			err := wsjson.Write(ctx, ws.conn, &Request{RequestType: RequestHeartBeat, Message: "ping"})
+			if err != nil {
+				Broadcaster.logout(ws)
+				return
+			}
 		}
 	}
 }
@@ -125,14 +150,24 @@ func (ws *WsConn) HandleCommand(client *dqclient.Client, command map[string]stri
 
 func (ws *WsConn) sendChannel(id string, topic string, data interface{}) {
 	resp := &Response{
-		Success: true,
-		ID:      id,
-		Topic:   topic,
-		Data:    data,
+		ResponseType: RequestCommand,
+		Success:      true,
+		ID:           id,
+		Topic:        topic,
+		Data:         data,
 	}
-	ws.commandChannel <- resp
+	ws.responseChannel <- resp
+}
+
+func (ws *WsConn) HandleHeartBeat(ctx context.Context) {
+	resp := &Response{
+		ResponseType: ResponseHeartBeat,
+		Success:      true,
+		Message:      "pong",
+	}
+	ws.responseChannel <- resp
 }
 
 func (ws *WsConn) close() {
-	close(ws.commandChannel)
+	close(ws.responseChannel)
 }

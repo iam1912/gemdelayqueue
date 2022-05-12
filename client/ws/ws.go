@@ -6,7 +6,6 @@ import (
 	"github.com/iam1912/gemseries/gemdelayqueue/client/dqclient"
 	"github.com/iam1912/gemseries/gemdelayqueue/log"
 	"nhooyr.io/websocket"
-	"nhooyr.io/websocket/wsjson"
 )
 
 type Handler struct {
@@ -27,8 +26,7 @@ func (h Handler) Ws(w http.ResponseWriter, r *http.Request) {
 	}
 	id := r.FormValue("id")
 	if id == "" {
-		wsjson.Write(r.Context(), conn, "invalid param")
-		conn.Close(websocket.StatusUnsupportedData, "invalid param")
+		RenderErrorResponse(conn, r.Context(), "invalid params")
 		return
 	}
 
@@ -37,6 +35,8 @@ func (h Handler) Ws(w http.ResponseWriter, r *http.Request) {
 	log.Infof("%s is register delayqueue\n", id)
 
 	go wsConn.Write(r.Context())
+	go wsConn.SendHeartBeat(r.Context())
+
 	err = wsConn.Read(h.Client, r.Context())
 
 	Broadcaster.logout(wsConn)
